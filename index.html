@@ -2,46 +2,17 @@
     <body>
         <canvas id="canvas" width="640" height="480"></canvas>
     </body>
-    <script id="shader" type="wgsl">
-        struct VertexOutput {
-            @builtin(position) clip_position: vec4<f32>, 
-            @location(0) color: vec3<f32>,
-        }; 
-
-        @group(0) @binding(0)
-        var<uniform> offset: vec3<f32>; 
-
-        @vertex 
-        fn vs_main(
-            @location(0) inPos: vec3<f32>,
-            @location(1) inColor: vec3<f32>, 
-        ) -> VertexOutput{
-            var out: VertexOutput; 
-            out.clip_position = vec4<f32>(inPos + offset, 1.0); 
-            out.color = inColor; 
-            return out; 
-        }
-        @fragment
-        fn fs_main (
-            in: VertexOutput
-        ) -> @location(0) vec4<f32> {
-            return vec4<f32>(in.color, 1.0); 
-        }
-    </script>
     <script>
         async function webgpu() {
             if(!navigator.gpu) {
-                throw new Error("WebGPU is not supported on your device");  
+                throw new Error("WebGPU is not supported"); 
             }
             const adapter = await navigator.gpu.requestAdapter(); 
-            if(!adapter) {
-                throw new Error("No adapter found"); 
-            }
-            const device = await adapter.requestDevice(); 
-            const context = canvas.getContext("webgpu");
+            const device = await adapter.requestDevice();
+            const context = canvas.getContext("webgpu"); 
             const canvasConfig = {
-                device: device,
-                format: navigator.gpu.getPreferredCanvasFormat(),
+                device: device, 
+                format: navigator.gpu.getPreferredCanvasFormat(adapter),
                 usage: GPUTextureUsage.RENDER_ATTACHMENT,
                 alphaMode: 'opaque'
             }; 
@@ -57,132 +28,13 @@
             const renderPassDescriptor = {
                 colorAttachments: [colorAttachment]
             };
-            //Create shader module
-            let code = document.getElementById("shader").innerText;
-            const shaderDescriptor = { code: code };
-            const shaderModule = device.createShaderModule(shaderDescriptor);
-
-            // Creates attribute, layout and buffer for colors
-            const colorAttributeDescriptor = {
-                shaderLocation: 1, 
-                offset: 0,
-                format: 'float32x3'
-            }; 
-            const colorBufferLayoutDescriptor = {
-                attributes: [colorAttributeDescriptor], 
-                arrayStride: 4 * 3,
-                stepMode: 'vertex'
-            };
-            const colors = new Float32Array([
-                1.0, 0.0, 0.0,
-                0.0, 1.0, 0.0,
-                0.0, 0.0, 1.0
-            ])
-            const colorBufferDescriptor = {
-                size: colors.byteLength, 
-                usage: GPUBufferUsage.VERTEX, 
-                mappedAtCreation: true
-            };
-            let colorBuffer = device.createBuffer(colorBufferDescriptor);
-            const writeArrayColor = new Float32Array(colorBuffer.getMappedRange());
-            writeArrayColor.set(colors);
-            colorBuffer.unmap();
-
-            // Creates vertex positions buffer attributes and layout description
-            const positionAttributeDescriptor = {
-                shaderLocation: 0, 
-                offset: 0, 
-                format: 'float32x3'
-            }; 
-            const positionBufferLayoutDescriptor = {
-                attributes: [positionAttributeDescriptor], 
-                arrayStride: 4 * 3,
-                stepMode: 'vertex'
-            };
-            const positions = new Float32Array([
-                1.0,-1.0,0.0,
-                -1.0,-1.0,0.0,
-                0.0,1.0,0.0
-            ])
-            const positionBufferDescriptor = {
-                size: positions.byteLength, 
-                usage: GPUBufferUsage.VERTEX, 
-                mappedAtCreation: true
-            }; 
-            let positionBuffer = device.createBuffer(positionBufferDescriptor);
-            const writeArray = new Float32Array(positionBuffer.getMappedRange());
-            writeArray.set(positions);
-            positionBuffer.unmap();
-
-            //Buffer for the uniform 
-            const uniformData = new Float32Array([0.1,0.1,0.1]); 
-            let uniformBufferDescriptor = {
-                size: uniformData.byteLength, 
-                usage: GPUBufferUsage.UNIFORM,
-                mappedAtCreation: true
-            };
-            let uniformBuffer = device.createBuffer(uniformBufferDescriptor);
-            const writeArrayUniform = new Float32Array(uniformBuffer.getMappedRange());
-            writeArrayUniform.set(uniformData);
-            uniformBuffer.unmap();
-            let uniformBindGroupLayout = device.createBindGroupLayout({
-                entries: [
-                    {
-                        binding: 0, 
-                        visibility: GPUShaderStage.VERTEX, 
-                        buffer: {}
-                    }
-                ]
-            }); 
-            let uniformBindGroup = device.createBindGroup({
-                layout: uniformBindGroupLayout, 
-                entries: [
-                    {
-                        binding: 0, 
-                        resource: {
-                            buffer: uniformBuffer
-                        }
-                    }
-                ]
-            });
-
-            // Creates pipeline layout
-            const pipelineLayout = { bindGroupLayouts: [uniformBindGroupLayout] };
-            const layout = device.createPipelineLayout(pipelineLayout);
-            const colorState = {
-                format: 'bgra8unorm'
-            };
-            const pipelineDescriptor = {
-                layout, 
-                vertex: {
-                    module: shaderModule, 
-                    entryPoint: 'vs_main',
-                    buffers: [positionBufferLayoutDescriptor, colorBufferLayoutDescriptor]
-                }, 
-                fragment: {
-                    module: shaderModule, 
-                    entryPoint: 'fs_main',
-                    targets: [colorState]
-                }, 
-                primitive: {
-                    topology: 'triangle-list', 
-                    frontFace: 'cw', 
-                    cullMode: 'back'
-                }
-            }
-            const pipeline = device.createRenderPipeline(pipelineDescriptor);
             const commandEncoder = device.createCommandEncoder();
             const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
             passEncoder.setViewport(0, 0, canvas.width, canvas.height, 0, 1);
-            passEncoder.setPipeline(pipeline);
-            passEncoder.setVertexBuffer(0, positionBuffer);
-            passEncoder.setVertexBuffer(1, colorBuffer);
-            passEncoder.setBindGroup(0, uniformBindGroup);
-            passEncoder.draw(3, 1);
             passEncoder.end(); 
             device.queue.submit([commandEncoder.finish()]);
             return; 
-        }
-        webgpu(); 
+        };
+        webgpu() ; 
     </script>
 </html>
